@@ -1,0 +1,499 @@
+openapi: 3.0.0
+info:
+  description: |
+    # Introduction
+    The AREV Bulk Load API allows you to load your transactional and configuration data into AREV. AREV Bulk
+    Load API is built using REST principles, which provide predictable URLs that make it easy to write applications. 
+    This API follows HTTP rules, so a wide range of HTTP clients can be used to interact with the API.
+    
+    # Authentication
+    All AREV Bulk Load API endpoints require authentication using credentials in the HTTP headers. You can pass credentials as:
+    
+    * `--user` username: password option
+    * An extra `--header` option with the proper authentication method and `username:password` combination encoded in Base64. 
+
+    To get credentials, contact the AREV CloudOps team
+    
+    # Connections
+    
+    Only SSL connections are allowed in AREV API endpoints. Communicating over SSL protects user privacy by encrypting information between a user and the AREV API.
+    
+    # Error Codes
+    
+    The AREV API returns [HTTP status codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes) for every request:
+    
+    | Code | Text              | Description                                                            |
+    |------|-------------------|------------------------------------------------------------------------|
+    | 200  | OK                | Success.                                                               |
+    | 204  | No Content        | The server received the request but the request is empty.              |
+    | 304  | Not Modified      | There is no new data to return.                                        |
+    | 400  | Bad Request       | The request is invalid or cannot be processed. For further details, refer to the accompanying error message.|
+    | 401  | Unauthorized      | Authentication credentials are missing or incorrect. Also returned in other circumstances, for example, all calls to API v1 endpoints return 401.                                                                             |
+    | 403  | Forbidden         | The request is understood, but it is rejected or access is not allowed. For further details, refer to the accompanying error message. This code is used when requests are rejected due to update limits.                      |
+    |      |                   | The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.                                                     |
+    | 406  | Not Acceptable    | Returned by the Search API when an invalid format is specified in the request.                                                                                                                                                |
+    | 410  | Gone              | This resource no longer exists. Used to indicate that an API endpoint is turned off. For example: “The Revstream REST API v1 will soon stop functioning. Please migrate to API v1.1.”                                         |
+    | 500  | Internal Server Error | Something is wrong. Contact the AREV Support team to investigate.                                                                                                                                                               |
+    # Error Responses
+    
+    If the data sent to AREV in the request body of the POST method does not pass data validation, the returned response has the HTTP status code of 400 and the response body has a list of error messages.
+    
+    The validation process allows you to make sure that the value you enter in a field is valid. If it is not, you get an error message. AREV Bulk Load API generates the following types of error messages:
+
+    * Required field validation. If you do not fill out the field, you will get the "<Field> must be specified." message.
+    * Maximum length validation. If you exceed the maximum number of characters allowed in a field, you will get the "<Field> can be up to and including <max> alphanumeric characters." message.
+    * Date format validation. If you use a date format different than YYYY-MM-DD, you will get the "<Field> has an incorrect date format" message.
+    * Numeric value format validation. If you enter a field with a value different than the number, you will get the "<Field> has invalid numeric format." message.
+    * Predefined values validation. Some fields have predefined values. For further details, refer to the Valid Values column in Staging Tables Mapping or FX Rates Upload, respectively. If you enter an incorrect value, you will get "<Field> must be <comma separated list of the allowable values>." message.
+    
+    # Pagination
+    
+    AREV provides APIs to retrieve lists of revenue schedules and other resources that are paginated to 3000 items by default. 
+    
+    The `pageNumber` should be specified in the URL as a query string parameter. For example: 
+
+    `http://revstreamcloud.com:883/connector/v2018.1/revenueSchedulesOut/getExported?orgId=1&trackerId=1&pageNumber=2`
+    
+  title: AREV Bulk Load API
+  version: 1.0.0
+tags:
+  - name: Staging
+    description: All APIs relating to staging operations in AREV.
+x-tagGroups:
+  - name: General
+    tags:
+      - Staging
+paths:
+  /connector/{version}/stgTransactions:
+    post:
+      tags:
+        - Staging
+      summary: Transactions Staging
+      description: >
+        AREV API allows you to load one or more Transaction records into AREV Staging. It also allows you to load Transaction Lines into Transaction data. 
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The API version
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StgTransactions'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/StgTransactions'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StgTransactionsResponse'
+                  - $ref: '#/components/schemas/StgTransactionsResponseWithLines'
+            application/xml:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StgTransactionsResponseXml'
+                  - $ref: '#/components/schemas/StgTransactionsResponseWithLinesXml'
+components:
+  schemas:
+    StgTransactions:
+      type: object
+      properties:
+        stgTransaction:
+          $ref: '#/components/schemas/StgTransaction'
+      xml:
+        name: stgTransactions
+        wrapped: true
+    StgTransaction:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            maxLength: 240
+            description: Unique transaction identifier.
+            example: "unique-id-123"
+          status:
+            type: string
+            enum: 
+              - New 
+              - Submitted
+              - Processed
+              - Error
+            maxLength: 30
+            description: The status of a transaction. This will go through 'New' → 'Submitted' → 'Processed' or 'Error'. When adding records for integration purposes, use 'New'
+            example: "New"
+          extTrxId:
+            type: string
+            maxLength: 240
+            description: External Transaction ID. Must be unique for a Source and Organization.
+            example: "ext-trx-id-123"
+          extTrxNumber:
+            type: string
+            maxLength: 50
+            description: External Transaction Number..
+            example: "trx-12345"
+          extTrxVersion:
+            type: integer
+            format: int64
+            description: External Transaction Version..
+            example: 1
+          sourceId:
+            type: string
+            maxLength: 30
+            description: Integration Source ID. For further details on the list of values for Source IDs, refer to external documentation for further information.
+            externalDocs: 
+              url: https://docs.revstreamcloud.com/user-documentation/latest/arev-configurations/master-data/manage-sources
+              description: Manage Sources
+            example: "source-id-123"
+          orgId:
+            type: integer
+            format: int64
+            description: Organization ID. For further details on the list of values for Organization IDs, refer to external documentation.
+            externalDocs:
+              url: https://docs.revstreamcloud.com/user-documentation/latest/arev-configurations/financials/manage-organizations
+              description: Manage Organisations
+            example: 100
+          organizationName:
+            type: string
+            maxLength: 150
+            description: External Organization Name. If left blank, the Organization name from the Manage Organizations setup will be used.
+            example: "Organization Name"
+          trxDate:
+            type: string
+            format: date
+            description: Transaction Date. Booked or Execution Date of a transaction or a contract. All dates should be provided in the ISO 2014 format, YYYY-MM-DD.
+            example: "2023-01-01"
+          trxStatus:
+            type: string
+            enum:
+              - Entered
+              - Booked
+            maxLength: 30
+            description: Transaction Status. It is recommended to use 'Booked'
+            example: "Booked"
+          action:
+            type: string
+            enum:
+              - NEW
+              - UPDATE
+              - APPEND
+              - UPDATE LINES
+              - REPLACE
+            maxLength: 30
+            description: Transaction action that tells the Load Transactions process what to do with a transaction and what level of control to use.
+            externalDocs:
+              url: https://docs.revstreamcloud.com/user-documentation/latest/arev-processes/load-transactions/load-transactions-processing-logic
+              description: Load Transaction Action
+            example: "NEW"
+          trxType:
+            type: string
+            maxLength: 30
+            description: Transaction Type ID.
+            example: "STANDARD"
+          trxDescription:
+            type: string
+            maxLength: 255
+            description: Transaction Description.
+            example: "Transaction description."
+          poNumber:
+            type: string
+            maxLength: 50
+            description: Customer PO number.
+            example: "PO-12345"
+          currency:
+            type: string
+            maxLength: 30
+            description: Transactional Currency. This is subject to FX Conversion in AREV.
+            example: "USD"
+          extSoldToCustomerId:
+            type: string
+            maxLength: 30
+            description: External Sold To Customer ID.
+            example: "ext-3062"
+          soldToCustomerId:
+            type: string
+            maxLength: 30
+            description: Internal Sold To Customer ID, i.e. Oracle ID.
+            example: "3062"
+          soldToCustomerNumber:
+            type: string
+            maxLength: 30
+            description: Sold To Customer Number.
+            example: "Z0B2SLH"
+          soldToCustomerName:
+            type: string
+            maxLength: 360
+            description: Sold To Customer Name.
+            example: "AcmeGlobal Commerce Solutions, Inc."
+          extBillToCustomerId:
+            type: string
+            maxLength: 30
+            description: External Bill To Customer ID.
+            example: "ext-3062"
+          billToCustomerId:
+            type: string
+            maxLength: 30
+            description: Internal Bill To Customer ID, i.e. Oracle ID.
+            example: "3062"
+          billToCustomerNumber:
+            type: string
+            maxLength: 30
+            description: Bill To Customer Number.
+            example: "A0B2SLH"
+          billToCustomerName:
+            type: string
+            maxLength: 360
+            description: Bill To Customer Name.
+            example: "Acme Global Commerce Solutions, Inc."
+          billToContactId:
+            type: string
+            maxLength: 30
+            description: Internal Billing Contact ID, i.e. Oracle ID.
+            example: "ABC3000"
+          billToContactName:
+            type: string
+            maxLength: 360
+            description: Contact Full Name.
+            example: "Acme Global Commerce Solutions, Inc."
+          extShipToCustomerId:
+            type: string
+            maxLength: 30
+            description: External Ship To Customer ID.
+            example: "ext-3010"
+          shipToCustomerId:
+            type: string
+            maxLength: 30
+            description: Internal Ship To Customer ID, i.e. Oracle ID.
+            example: "SHP3010"
+          shipToCustomerName:
+            type: string
+            maxLength: 360
+            description: Ship To Customer Name.
+            example: "Acme Global Commerce Solutions, Inc."
+          extPrimarySalesRepId:
+            type: integer
+            format: int64
+            description: Sales rep ID from an external system.
+            example: 123
+          primarySalesRepId:
+            type: string
+            maxLength: 30
+            description: Internal Primary Salesrep ID, i.e. Oracle ID.
+            example: "SR-123"
+          primarySalesRepNumber:
+            type: string
+            maxLength: 240
+            description: Primary Salesrep Number.
+            example: "SRP1230"
+          primarySalesRepName:
+            type: string
+            maxLength: 100
+            description: Primary Salesrep Name.          
+            example: ""
+          comments:
+            type: string
+            maxLength: 2000
+            description: Client-specific text attribute to add comments.
+            example: "This is a comment"
+          attribute1:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute2:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute3:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute4:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute5:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute6:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute7:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute8:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute9:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute10:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute11:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute12:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute13:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute14:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          attribute15:
+            type: string
+            maxLength: 150
+            description: Client-specific additional text attribute. It does not drive any functionality.
+            example: "Custom attribute value"
+          extBillToAddressId:
+            type: string
+            maxLength: 30
+            description: Internal Bill To Address ID.
+            example: "3000"
+          billToAddressId:
+            type: integer
+            format: int64
+            description: Internal Bill To Address ID.
+            example: 3000
+          extShipToAddressId:
+            type: string
+            maxLength: 30
+            description: External Ship-To Address ID.
+            example: "ABC123"
+          shipToAddressId:
+            type: integer
+            format: int64
+            description: Internal Ship-To Address ID.
+            example: 1234
+          arrangementNumber:
+            type: string
+            maxLength: 50
+            description: External Arrangement Number. Set to NULL if AREV will perform Arrangement Assignment (Assign Transactions).
+            example: null
+          transactionBudget:
+            type: integer
+            format: int64
+            description: Transaction Budget.
+            example: ""
+          extOrgId:
+            type: string
+            maxLength: 250
+            description: External Org ID.
+            example: "ORG-0001"
+          adjReason:
+            type: string
+            maxLength: 60
+            description: Adjustment Reason.
+            example: "Reason for adjustment"
+          adjEffectiveDate:
+            type: string
+            format: date
+            description: Adjustment Effective Date. All dates are returned in the ISO 8601 format, YYYY-MM-DD.
+            example: "2023-01-01"
+          billToAddress:
+            type: string
+            maxLength: 600
+            description: Full Bill to Address.
+            example: "1 Street Name, City, State, Zip"
+          shipToAddress:
+            type: string
+            maxLength: 600
+            description: Full Ship to Address.            
+            example: "1 Street Name, City, State, Zip"
+        xml:
+          name: stgTransaction
+          wrapped: true
+      required:
+        - id
+        - status
+        - extTrxId
+        - extTrxNumber
+        - sourceId
+        - orgId
+        - trxDate
+        - trxStatus
+        - action
+        - currency
+    StgTransactionsResponse: 
+      type: object
+      properties:
+        transactionsJobId: 
+          type: integer
+          format: int64
+          description: Internal process ID to assist AREV support.
+          example: 1249
+        transactionRecordsReceived: 
+          type: integer
+          format: int64
+          description: The number of Transaction records received.
+          example: 1
+        transactionRecordsProcessed: 
+          type: integer
+          format: int64
+          description: The number of Transaction records successfully processed.
+          example: 1
+        transactionRecordsProcessedWithError: 
+          type: integer
+          format: int64
+          description: Validation Errors will be returned if the Transaction input has invalid data. Only populated on 400 response.
+          example: 0
+    StgTransactionsResponseXml: 
+      type: array
+      items:
+        properties:
+          transactionsJobId: 
+            type: integer
+            format: int64
+            description: Internal process ID to assist AREV support.
+            example: 1249
+          transactionRecordsReceived: 
+            type: integer
+            format: int64
+            description: The number of Transaction records received.
+            example: 1
+          transactionRecordsProcessed: 
+            type: integer
+            format: int64
+            description: The number of Transaction records successfully processed.
+            example: 1
+          transactionRecordsProcessedWithError: 
+            type: integer
+            format: int64
+            description: Validation Errors will be returned if the Transaction input has invalid data. Only populated on 400 response.
+            example: 0  
+        xml:
+          name: processingStatus
